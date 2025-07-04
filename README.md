@@ -1,5 +1,8 @@
 # GCP Secret Sharer Application
 
+## Demo
+https://github.com/user-attachments/assets/63c9256b-de40-43b9-aea5-6be11a04252b
+
 This guide provides step-by-step instructions to deploy the Secret Sharer application on Google Cloud. The application runs on **Cloud Run**, uses **Firestore** for data storage, and leverages **Secret Manager** for credential management.
 
 ## Prerequisites
