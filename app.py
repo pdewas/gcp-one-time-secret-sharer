@@ -1,11 +1,15 @@
 import streamlit as st
 import uuid
-# from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-from google.cloud import secretmanager, resourcemanager_v3, firestore
-from cryptography.fernet import Fernet
+from google.cloud import secretmanager # Still needed for fetching OAuth client ID/secret directly in SecretSharerApp
+# from google.oauth2.credentials import Credentials # Not directly used in app.py after refactor
+# from googleapiclient.discovery import build # Moved to backend.py
+# from google.cloud import resourcemanager_v3, firestore # Moved to backend.py
+# from cryptography.fernet import Fernet # Moved to backend.py
 # from streamlit.web.server.server import Server
+
+# Import backend classes
+from backend import GCPServiceManager, UserGCPClient
 
 # Scopes define the permissions the end-user will grant to the application.
 SCOPES = [
@@ -13,58 +17,6 @@ SCOPES = [
     "https://www.googleapis.com/auth/cloud-platform",
     "openid"
 ]
-
-# --- Class for Backend Operations (using Cloud Run Service Account) ---
-class GCPServiceManager:
-    """Handles backend services using the app's environment service account."""
-
-    def __init__(self, project_id: str):
-        try:
-            # When no credentials are provided, clients automatically use
-            # the environment's service account (Application Default Credentials).
-            self.db = firestore.Client(project=project_id)
-            sm_client = secretmanager.SecretManagerServiceClient()
-
-            # Fetch the encryption key to create a cipher
-            key_name = sm_client.secret_version_path(project_id, "secret-sharer-encryption-key", 'latest')
-            response = sm_client.access_secret_version(request={"name": key_name})
-            self.cipher = Fernet(response.payload.data)
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize backend services. Ensure the service account has 'Firestore User' and 'Secret Manager Secret Accessor' roles. Details: {e}")
-
-    def encrypt_secret(self, secret_value: str) -> bytes:
-        return self.cipher.encrypt(secret_value.encode('utf-8'))
-
-    def decrypt_secret(self, encrypted_value: bytes) -> str:
-        return self.cipher.decrypt(encrypted_value).decode('utf-8')
-
-# --- Class for User-Specific GCP Actions (using User's OAuth Credentials) ---
-class UserGCPClient:
-    """Handles GCP actions on behalf of the logged-in user."""
-
-    def __init__(self, credentials):
-        self.credentials = credentials
-        self.user_email = self._fetch_user_email()
-
-    def _fetch_user_email(self):
-        try:
-            user_info_service = build('oauth2', 'v2', credentials=self.credentials)
-            return user_info_service.userinfo().get().execute().get('email')
-        except Exception:
-            return None
-
-    def list_projects(self) -> list:
-        client = resourcemanager_v3.ProjectsClient(credentials=self.credentials)
-        return sorted([p.project_id for p in client.search_projects(request={})])
-
-    def list_secrets(self, project_id: str) -> list:
-        client = secretmanager.SecretManagerServiceClient(credentials=self.credentials)
-        return list(client.list_secrets(parent=f"projects/{project_id}"))
-
-    def get_secret_value(self, secret_version_name: str) -> str:
-        client = secretmanager.SecretManagerServiceClient(credentials=self.credentials)
-        response = client.access_secret_version(name=secret_version_name)
-        return response.payload.data.decode("UTF-8")
 
 # --- Main Application Class ---
 class SecretSharerApp:
