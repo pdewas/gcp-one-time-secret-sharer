@@ -18,11 +18,11 @@ These commands configure your local shell and enable the necessary Google Cloud 
 
 This simplifies the following commands by storing your configuration in variables.
 
+
 ```bash
 export PROJECT_ID="secrets-sharing-externally"
 export REGION="europe-west4"
-export SERVICE_ACCOUNT_NAME="sa-share"
-export SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+export SERVICE_ACCOUNT_EMAIL="$sa-share@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 ### Enable GCP APIs
 This command activates all the services required for the application to function.
@@ -148,7 +148,9 @@ gcloud run deploy secret-sharer \
   --platform managed \
   --region "$REGION" \
   --service-account "$SERVICE_ACCOUNT_EMAIL" \
-  --allow-unauthenticated
+  --no-allow-unauthenticated \
+  --ingress=all \
+  --update-secrets=oauth-client-id=oauth-client-id:latest,oauth-client-secret=oauth-client-secret:latest
 ```
 Note: The --allow-unauthenticated flag makes the service publicly accessible, but users must still log in via Google OAuth to use the app's features.
 
