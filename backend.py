@@ -2,10 +2,6 @@
 from google.cloud import secretmanager, resourcemanager_v3, firestore
 from googleapiclient.discovery import build
 from cryptography.fernet import Fernet
-# Note: google_auth_oauthlib.flow is not directly used by these classes,
-# but UserGCPClient expects credentials that might originate from it.
-# Keeping it here for clarity or future use if credential handling within UserGCPClient changes.
-# from google_auth_oauthlib.flow import Flow # Credentials are now passed directly
 
 # --- Class for Backend Operations (using Cloud Run Service Account) ---
 class GCPServiceManager:

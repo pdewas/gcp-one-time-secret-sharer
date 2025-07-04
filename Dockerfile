@@ -13,4 +13,4 @@ COPY . .
 
 # CORRECTED COMMAND:
 # Use "sh -c" to ensure the $PORT environment variable is expanded by the shell.
-CMD ["sh", "-c", "streamlit run app.py --server.port $PORT --server.enableCORS false"]
+CMD ["sh", "-c", "streamlit run app.py --server.port $PORT"]

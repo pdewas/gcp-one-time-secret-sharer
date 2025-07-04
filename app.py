@@ -1,12 +1,8 @@
 import streamlit as st
 import uuid
 from google_auth_oauthlib.flow import Flow
-from google.cloud import secretmanager # Still needed for fetching OAuth client ID/secret directly in SecretSharerApp
-# from google.oauth2.credentials import Credentials # Not directly used in app.py after refactor
-# from googleapiclient.discovery import build # Moved to backend.py
-# from google.cloud import resourcemanager_v3, firestore # Moved to backend.py
-# from cryptography.fernet import Fernet # Moved to backend.py
-# from streamlit.web.server.server import Server
+from google.cloud import secretmanager, firestore
+from streamlit.web.server.server import Server
 
 # Import backend classes
 from backend import GCPServiceManager, UserGCPClient
@@ -27,7 +23,7 @@ class SecretSharerApp:
         self._initialize_session_state()
         self.services = self._get_service_manager()
 
-        # --- FETCH SECRETS ONCE ON STARTUP ---
+        # --- FETCH OAUTH SECRETS ONCE ON STARTUP ---
         project_id = "secrets-sharing-externally"
         sm_client = secretmanager.SecretManagerServiceClient()
 
@@ -56,9 +52,18 @@ class SecretSharerApp:
             st.session_state.user_client = None
         if 'auth_flow' not in st.session_state:
             st.session_state.auth_flow = None
-
+            
     def _get_base_url(self):
-        return f"https://secret-sharer-696580064439.europe-west4.run.app"
+        """Dynamically gets the app's public URL from request headers."""
+        try:
+            session_info = Server.get_current().get_session_info(st.runtime.get_instance().get_client_session_id())
+            host = session_info.http_headers.get("Host")
+            if host:
+                return f"https://{host}"
+        except Exception:
+            # Fallback if detection fails, though less likely in Cloud Run
+            return "https://secret-sharer-696580064439.europe-west4.run.app"
+
 
     def run(self):
         """Main control flow for the app."""
@@ -120,7 +125,7 @@ class SecretSharerApp:
             st.error(f"An error occurred: {e}")
 
     def _render_secret_widget(self, secret):
-        """Renders the UI for a single secret."""
+        """Renders the UI for a single secret and stores metadata in Firestore."""
         user_client = st.session_state.user_client
         short_name = secret.name.split('/')[-1]
         link_state_key = f"link_for_{secret.name}"
@@ -140,7 +145,14 @@ class SecretSharerApp:
 
                         token = str(uuid.uuid4())
                         doc_ref = self.services.db.collection('one_time_secrets').document(token)
-                        doc_ref.set({'encrypted_secret': encrypted_secret})
+                        
+                        # Set document with encrypted secret and metadata
+                        doc_ref.set({
+                            'encrypted_secret': encrypted_secret,
+                            'created_at': firestore.SERVER_TIMESTAMP,
+                            'created_by': user_client.user_email,
+                            'secret_name': secret.name
+                        })
 
                         st.session_state[link_state_key] = f"{self._get_base_url()}?token={token}"
                         st.rerun()
@@ -154,10 +166,14 @@ class SecretSharerApp:
         doc = doc_ref.get()
 
         if doc.exists:
+            doc_data = doc.to_dict()
             doc_ref.delete()
-            decrypted_secret = self.services.decrypt_secret(doc.to_dict()['encrypted_secret'])
+            decrypted_secret = self.services.decrypt_secret(doc_data['encrypted_secret'])
             st.success("Secret retrieved. This link is now invalid.")
             st.code(decrypted_secret, language=None)
+            
+            # Optionally display the metadata
+            st.caption(f"This secret for '{doc_data.get('secret_name', 'N/A')}' was created by {doc_data.get('created_by', 'N/A')}.")
         else:
             st.error("This link is invalid or has already been used.")
 

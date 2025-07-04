@@ -104,3 +104,6 @@ dmypy.json
 # Custom
 Archive/
 client_secrets.json
+
+# Mac
+.DS_Store
